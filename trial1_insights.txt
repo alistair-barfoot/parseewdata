@@ -1,0 +1,7 @@
+This trial lasted for 748s.
+The voltage dropped 11 times and the average drop length was 0.4s.
+The average drop fell to 4509V.
+The lowest the voltage dropped was 3721V.
+The average power consumption during this trial was 780.1W.
+Counting only the power when zapping, the average power is 924.0W.
+The maximum power reached during this trial was 3216.3W

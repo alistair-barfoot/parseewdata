@@ -12,7 +12,7 @@
 
 int main(int argc, char *argv[])
 {
-  if (argc != 4)
+  if (argc != 5)
   {
     printf("Incorrect number of arguments\n");
     return -1;
@@ -51,7 +51,8 @@ int main(int argc, char *argv[])
   double max_power = MIN_POWER;
 
   int total_drop_length = 0, drop_count = 0, total_drop_min = 0;
-  double total_power = 0;
+  double total_power = 0, total_useful_power = 0;
+  int useful_power_counter = 0;
 
   for (int i = start; i < end; i++)
   {
@@ -75,6 +76,11 @@ int main(int argc, char *argv[])
     current = atof(current_str);
     power = voltage * current / 1000; // W
     total_power += power;
+    if (power > 0)
+    {
+      total_useful_power += power;
+      useful_power_counter++;
+    }
     if (power > max_power)
       max_power = power;
     printf("I=%03.0lfmA, P=%04.0lfW\n", current, power);
@@ -102,12 +108,18 @@ int main(int argc, char *argv[])
       in_drop = FALSE;
     }
   }
+  fclose(fp);
 
-  printf("This trial lasted for %.0lfs.\n", time_elapsed);
-  printf("The voltage dropped %d times and the average drop length was %.1lfs.\n", drop_count, total_drop_length / (double)drop_count / 1000);
-  printf("The average drop fell to %.0lfV.\n", total_drop_min / (double)drop_count);
-  printf("The lowest the voltage dropped was %dV.\n", lowest_drop);
-  printf("The average power consumption during this trial was %.1lfW.\n", total_power / (float)num_periods);
-  printf("The maximum power reached during this trial was %.1lfW", max_power);
+  fp = fopen(argv[4], "w");
+
+  fprintf(fp, "This trial lasted for %.0lfs.\n", time_elapsed);
+  fprintf(fp, "The voltage dropped %d times and the average drop length was %.1lfs.\n", drop_count, total_drop_length / (double)drop_count / 1000);
+  fprintf(fp, "The average drop fell to %.0lfV.\n", total_drop_min / (double)drop_count);
+  fprintf(fp, "The lowest the voltage dropped was %dV.\n", lowest_drop);
+  fprintf(fp, "The average power consumption during this trial was %.1lfW.\n", total_power / (float)num_periods);
+  fprintf(fp, "Counting only the power when zapping, the average power is %.1lfW.\n", total_useful_power / useful_power_counter);
+  fprintf(fp, "The maximum power reached during this trial was %.1lfW\n", max_power);
+
+  fclose(fp);
   return 0;
 }
