@@ -37,10 +37,12 @@ int main(int argc, char *argv[])
     fgets(str, sizeof(str), fp);
   }
 
-  char voltage_str[5];
+  char voltage_str[5], current_str[10];
+  int current_start;
   int voltage, drop_min;
   int in_drop = FALSE;
   int drop_start = 0;
+  double current;
   int lowest_drop = VOLT_MAX;
 
   int total_drop_length = 0, drop_count = 0, total_drop_min = 0;
@@ -52,7 +54,20 @@ int main(int argc, char *argv[])
     {
       voltage_str[j] = str[j + 24];
     }
+    int comma_count = 0;
+    for (current_start = 0; comma_count < 8; ++current_start)
+    {
+      if (str[current_start] == ',')
+        comma_count++;
+    }
+    for (int j = 0; j < 9 && str[j + 1] != '\n'; j++)
+    {
+      current_str[j] = str[j + current_start];
+    }
+    // printf("%s\n", current_str);
     voltage = atoi(voltage_str);
+    current = atof(current_str);
+    printf("I=%.2lf\n", current);
     if (voltage < VOLT_DROP_THRESHOLD && !in_drop)
     {
       drop_start = i;
@@ -64,6 +79,10 @@ int main(int argc, char *argv[])
     {
       drop_min = voltage;
     }
+    if (voltage < lowest_drop)
+    {
+      lowest_drop = voltage;
+    }
     if (in_drop && voltage >= VOLT_DROP_THRESHOLD)
     {
       printf("The voltage dropped for %d ms and the lowest value was %dV.\n", (i - drop_start) * TIME_PERIOD_MS, drop_min);
@@ -74,8 +93,8 @@ int main(int argc, char *argv[])
     }
   }
 
-  printf("The voltage dropped %d times and the average voltage drop length was %.1lfs.\n", drop_count, total_drop_length / (double)drop_count / 1000);
-  printf("The average minimum voltage drop was %.0lfV.\n", total_drop_min / (double)drop_count);
-
+  printf("The voltage dropped %d times and the average drop length was %.1lfs.\n", drop_count, total_drop_length / (double)drop_count / 1000);
+  printf("The average drop fell to %.0lfV.\n", total_drop_min / (double)drop_count);
+  printf("The lowest the voltage dropped was %dV.\n", lowest_drop);
   return 0;
 }
