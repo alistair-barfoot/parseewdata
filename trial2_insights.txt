@@ -6,3 +6,5 @@ The average power consumption during this trial was 1486.8W.
 Counting only the power when zapping, the average power is 1647.2W.
 The maximum power reached during this trial was 3236.0W.
 The average fuel consumption is 0.67L/hr.
+The total amount of energy consumed during this trial was 1050.8kJ.
+The energy used per unit distance is 7.01kJ/m.

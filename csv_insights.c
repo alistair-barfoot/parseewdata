@@ -13,7 +13,7 @@
 
 int main(int argc, char *argv[])
 {
-  if (argc != 5)
+  if (argc != 6)
   {
     printf("Incorrect number of arguments\n");
     return -1;
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
   }
   fclose(fp);
 
-  fp = fopen(argv[4], "w");
+  fp = fopen(argv[5], "w");
 
   fprintf(fp, "This trial lasted for %.0lfs.\n", time_elapsed);
   fprintf(fp, "The voltage dropped %d times and the average drop length was %.1lfs.\n", drop_count, total_drop_length / (double)drop_count / 1000);
@@ -120,7 +120,9 @@ int main(int argc, char *argv[])
   fprintf(fp, "The average power consumption during this trial was %.1lfW.\n", total_power / (float)num_periods);
   fprintf(fp, "Counting only the power when zapping, the average power is %.1lfW.\n", total_useful_power / useful_power_counter);
   fprintf(fp, "The maximum power reached during this trial was %.1lfW.\n", max_power);
-  fprintf(fp, "The average fuel consumption is %.2lfL/hr.", total_power / (float)num_periods * LITRES_PERWATT_PERHOUR);
+  fprintf(fp, "The average fuel consumption is %.2lfL/hr.\n", total_power / (float)num_periods * LITRES_PERWATT_PERHOUR);
+  fprintf(fp, "The total amount of energy consumed during this trial was %.1lfkJ.\n", time_elapsed * total_power / (float)num_periods / 1000);
+  fprintf(fp, "The energy used per unit distance is %.2lfkJ/m.\n", time_elapsed * total_power / (float)num_periods / 1000 / atoi(argv[4]));
 
   fclose(fp);
   return 0;
