@@ -9,6 +9,7 @@
 #define MIN_POWER 0
 #define VOLT_DROP_THRESHOLD 4900
 #define MAX_ROWS 10000
+#define LITRES_PERWATT_PERHOUR 0.00045336481
 
 int main(int argc, char *argv[])
 {
@@ -118,7 +119,8 @@ int main(int argc, char *argv[])
   fprintf(fp, "The lowest the voltage dropped was %dV.\n", lowest_drop);
   fprintf(fp, "The average power consumption during this trial was %.1lfW.\n", total_power / (float)num_periods);
   fprintf(fp, "Counting only the power when zapping, the average power is %.1lfW.\n", total_useful_power / useful_power_counter);
-  fprintf(fp, "The maximum power reached during this trial was %.1lfW\n", max_power);
+  fprintf(fp, "The maximum power reached during this trial was %.1lfW.\n", max_power);
+  fprintf(fp, "The average fuel consumption is %.2lfL/hr.", total_power / (float)num_periods * LITRES_PERWATT_PERHOUR);
 
   fclose(fp);
   return 0;
