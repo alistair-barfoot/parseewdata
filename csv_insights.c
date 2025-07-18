@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
 
   fp = fopen(argv[5], "w");
 
-  fprintf(fp, "This trial lasted for %.0lfs.\n", time_elapsed);
+  fprintf(fp, "This trial lasted for %.0lfs and travelled %dm.\n", time_elapsed, atoi(argv[4]));
   fprintf(fp, "The voltage dropped %d times and the average drop length was %.1lfs.\n", drop_count, total_drop_length / (double)drop_count / 1000);
   fprintf(fp, "The average drop fell to %.0lfV.\n", total_drop_min / (double)drop_count);
   fprintf(fp, "The lowest the voltage dropped was %dV.\n", lowest_drop);
