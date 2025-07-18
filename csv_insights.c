@@ -5,6 +5,10 @@
 #define FALSE 0
 #define TRUE 1
 
+// Shouldn't need to change these values
+#define VOLTAGE_COL 7
+#define CURRENT_COL 8
+
 // Change these values based on what type of experiment
 #define TIME_PERIOD_MS 100       // ms
 #define VOLT_MAX 5000            // V
@@ -19,9 +23,10 @@
 #define GENERATOR_LOAD 3500 // W
 #define LITRES_PERWATT_PERHOUR FUEL_CAPACITY / RUN_LENGTH / GENERATOR_LOAD
 
-void printToFile(char *output_file, int time_elapsed, int distance_travelled, int drop_count, double average_drop_length, double average_drop, int lowest_drop, double average_power, double average_useful_power, double max_power, double average_fuel, double total_energy, double energy_per_dist)
+void printToFile(char *output_file, double time_elapsed, int distance_travelled, int drop_count, double average_drop_length, double average_drop, int lowest_drop, double average_power, double average_useful_power, double max_power, double average_fuel, double total_energy, double energy_per_dist)
 {
   FILE *fp = fopen(output_file, "w");
+  printf("%s\n", output_file);
 
   fprintf(fp, "This trial lasted for %.0lfs and travelled %dm.\n", time_elapsed, distance_travelled);
   fprintf(fp, "The voltage dropped %d times and the average drop length was %.1lfs.\n", drop_count, average_drop_length);
@@ -63,6 +68,7 @@ int main(int argc, char *argv[])
 
   int num_periods = end - start;
   double time_elapsed = num_periods * TIME_PERIOD_MS / 1000.0;
+  printf("%.1lf\n", time_elapsed);
   FILE *fp = fopen(argv[1], "r");
   printf("%s\n", argv[1]);
 
@@ -79,12 +85,12 @@ int main(int argc, char *argv[])
     fgets(str, sizeof(str), fp);
   }
 
-  char voltage_str[5], current_str[10];
-  int current_start;
-  int voltage, drop_min;
+  char voltage_str[10], current_str[10];
+  int current_start, voltage_start;
+  int drop_min;
   int in_drop = FALSE;
   int drop_start = 0;
-  double current, power;
+  double voltage, current, power;
   int lowest_drop = VOLT_MAX;
   double max_power = MIN_POWER;
 
@@ -95,22 +101,28 @@ int main(int argc, char *argv[])
   for (int i = start; i < end; i++)
   {
     fgets(str, sizeof(str), fp);
-    for (int j = 0; j < 4; j++)
-    {
-      voltage_str[j] = str[j + 24];
-    }
+
     int comma_count = 0;
-    for (current_start = 0; comma_count < 8; ++current_start)
+    for (voltage_start = 0; comma_count < VOLTAGE_COL; ++voltage_start)
+    {
+      if (str[voltage_start] == ',')
+        comma_count++;
+    }
+    for (int j = 0; str[j] != ','; j++)
+    {
+      voltage_str[j] = str[j + voltage_start];
+    }
+    voltage = atof(voltage_str);
+    comma_count = 0;
+    for (current_start = 0; comma_count < CURRENT_COL; ++current_start)
     {
       if (str[current_start] == ',')
         comma_count++;
     }
-    for (int j = 0; j < 9 && str[j + 1] != '\n'; j++)
+    for (int j = 0; str[j + 1] != '\n'; j++)
     {
       current_str[j] = str[j + current_start];
     }
-    // printf("%s\n", current_str);
-    voltage = atoi(voltage_str);
     current = atof(current_str);
     power = voltage * current / 1000; // W
     total_power += power;
@@ -121,13 +133,13 @@ int main(int argc, char *argv[])
     }
     if (power > max_power)
       max_power = power;
-    // printf("I=%03.0lfmA, P=%04.0lfW\n", current, power);
+    // printf("V=%lfV,I=%03.0lfmA, P=%04.0lfW\n", voltage, current, power);
     if (voltage < VOLT_DROP_THRESHOLD && !in_drop)
     {
       drop_start = i;
       drop_min = VOLT_MAX;
       in_drop = TRUE;
-      printf("Start voltage drop. Index: %d, Voltage: %d\n", i, voltage);
+      // printf("Start voltage drop. Index: %d, Voltage: %d\n", i, voltage);
     }
     if (in_drop && voltage < drop_min)
     {
@@ -139,8 +151,9 @@ int main(int argc, char *argv[])
     }
     if (in_drop && voltage >= VOLT_DROP_THRESHOLD)
     {
-      printf("The voltage dropped for %d ms and the lowest value was %dV.\n", (i - drop_start) * TIME_PERIOD_MS, drop_min);
-      total_drop_length += (i - drop_start) * TIME_PERIOD_MS;
+      int drop_length = (1 + i - drop_start) * TIME_PERIOD_MS;
+      // printf("The voltage dropped for %d ms and the lowest value was %dV.\n", drop_length, drop_min);
+      total_drop_length += drop_length;
       total_drop_min += drop_min;
       drop_count++;
       in_drop = FALSE;

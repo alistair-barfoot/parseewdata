@@ -1,5 +1,5 @@
-This trial lasted for 0s and travelled 4199136m.
-The voltage dropped 11 times and the average drop length was 0.4s.
+This trial lasted for 748s and travelled 200m.
+The voltage dropped 11 times and the average drop length was 0.5s.
 The average drop fell to 4509V.
 The lowest the voltage dropped was 3721V.
 The average power consumption during this trial was 780.1W.
