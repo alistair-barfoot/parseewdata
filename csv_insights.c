@@ -5,6 +5,14 @@
 #define FALSE 0
 #define TRUE 1
 
+// #define DEBUG // Uncomment to enable debug print statements
+
+#ifdef DEBUG
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...)
+#endif
+
 // Shouldn't need to change these values
 #define VOLTAGE_COL 7
 #define CURRENT_COL 8
@@ -23,154 +31,189 @@
 #define GENERATOR_LOAD 3500 // W
 #define LITRES_PERWATT_PERHOUR FUEL_CAPACITY / RUN_LENGTH / GENERATOR_LOAD
 
-void printToFile(char *output_file, double time_elapsed, int distance_travelled, int drop_count, double average_drop_length, double average_drop, int lowest_drop, double average_power, double average_useful_power, double max_power, double average_fuel, double total_energy, double energy_per_dist)
+// Struct to hold cumulative data
+typedef struct
+{
+  double total_power;
+  double total_useful_power;
+  double max_power;
+  int useful_power_counter;
+  int total_drop_length;
+  int total_drop_min;
+  int drop_count;
+  int lowest_drop;
+} PowerStats;
+
+/**
+ * Skip a given number of lines in the file
+ */
+void skipLines(FILE *fp, int lines)
+{
+  char buffer[100];
+  for (int i = 0; i < lines; i++)
+  {
+    fgets(buffer, sizeof(buffer), fp);
+  }
+}
+
+/**
+ * Extracts voltage or current value from a CSV line based on the column index
+ */
+double extractValue(char *line, int column)
+{
+  int commas_seen = 0;
+  int i = 0;
+
+  while (line[i] != '\0' && commas_seen < column)
+  {
+    if (line[i] == ',')
+      commas_seen++;
+    i++;
+  }
+
+  char value_str[16] = {0};
+  int j = 0;
+  while (line[i] != ',' && line[i] != '\n' && line[i] != '\0' && j < 15)
+  {
+    value_str[j++] = line[i++];
+  }
+  value_str[j] = '\0';
+  return atof(value_str);
+}
+
+/**
+ * Processes a CSV line and updates statistics accordingly
+ */
+void processLine(char *line, int index, PowerStats *stats, int *in_drop, int *drop_start)
+{
+  double voltage = extractValue(line, VOLTAGE_COL);
+  double current = extractValue(line, CURRENT_COL);
+  double power = voltage * current / 1000.0;
+
+  stats->total_power += power;
+  if (power > 0)
+  {
+    stats->total_useful_power += power;
+    stats->useful_power_counter++;
+  }
+  if (power > stats->max_power)
+  {
+    stats->max_power = power;
+  }
+  if (voltage < stats->lowest_drop)
+  {
+    stats->lowest_drop = voltage;
+  }
+
+  if (voltage < VOLT_DROP_THRESHOLD && !(*in_drop))
+  {
+    *drop_start = index;
+    *in_drop = TRUE;
+    stats->total_drop_min += VOLT_MAX;
+    DEBUG_PRINT("Start drop at index %d, V=%.0lf\n", index, voltage);
+  }
+
+  if (*in_drop)
+  {
+    if (voltage < stats->total_drop_min)
+    {
+      stats->total_drop_min = voltage;
+    }
+    if (voltage >= VOLT_DROP_THRESHOLD)
+    {
+      int drop_length = (1 + index - *drop_start) * TIME_PERIOD_MS;
+      stats->total_drop_length += drop_length;
+      stats->drop_count++;
+      *in_drop = FALSE;
+      DEBUG_PRINT("Drop ended at index %d, length=%dms\n", index, drop_length);
+    }
+  }
+}
+
+/**
+ * Calculates and prints output to a results file
+ */
+void printToFile(const char *output_file, double time_elapsed, int distance_travelled, PowerStats stats)
 {
   FILE *fp = fopen(output_file, "w");
-  printf("%s\n", output_file);
+
+  double avg_drop_len = stats.total_drop_length / (double)stats.drop_count / 1000;
+  double avg_drop_val = stats.total_drop_min / (double)stats.drop_count;
+  double avg_power = stats.total_power / (stats.useful_power_counter + (stats.total_power == 0 ? 1 : 0));
+  double avg_useful = stats.total_useful_power / (double)stats.useful_power_counter;
+  double avg_fuel = avg_power * LITRES_PERWATT_PERHOUR;
+  double total_energy = avg_power * time_elapsed / 1000;
+  double energy_per_dist = total_energy / distance_travelled;
 
   fprintf(fp, "This trial lasted for %.0lfs and travelled %dm.\n", time_elapsed, distance_travelled);
-  fprintf(fp, "The voltage dropped %d times and the average drop length was %.1lfs.\n", drop_count, average_drop_length);
-  fprintf(fp, "The average drop fell to %.0lfV.\n", average_drop);
-  fprintf(fp, "The lowest the voltage dropped was %dV.\n", lowest_drop);
-  fprintf(fp, "The average power consumption during this trial was %.1lfW.\n", average_power);
-  fprintf(fp, "Counting only the power when zapping, the average power is %.1lfW.\n", average_useful_power);
-  fprintf(fp, "The maximum power reached during this trial was %.1lfW.\n", max_power);
-  fprintf(fp, "The average fuel consumption is %.2lfL/hr.\n", average_fuel);
+  fprintf(fp, "The voltage dropped %d times and the average drop length was %.1lfs.\n", stats.drop_count, avg_drop_len);
+  fprintf(fp, "The average drop fell to %.0lfV.\n", avg_drop_val);
+  fprintf(fp, "The lowest the voltage dropped was %dV.\n", stats.lowest_drop);
+  fprintf(fp, "The average power consumption during this trial was %.1lfW.\n", avg_power);
+  fprintf(fp, "Counting only the power when zapping, the average power is %.1lfW.\n", avg_useful);
+  fprintf(fp, "The maximum power reached during this trial was %.1lfW.\n", stats.max_power);
+  fprintf(fp, "The average fuel consumption is %.2lfL/hr.\n", avg_fuel);
   fprintf(fp, "The total amount of energy consumed during this trial was %.1lfkJ.\n", total_energy);
   fprintf(fp, "The energy used per unit distance is %.2lfkJ/m.\n", energy_per_dist);
 
   fclose(fp);
-
-  return;
 }
 
-int main(int argc, char *argv[])
+/**
+ * Validates command-line arguments and returns 0 if valid
+ */
+int validateArgs(int argc, char *argv[])
 {
   if (argc != 6)
   {
     printf("Incorrect number of arguments\n");
-    return -1;
+    return FALSE;
   }
-  int start = atoi(argv[2]), end = atoi(argv[3]);
-  char *outputFile = argv[5];
-
+  int start = atoi(argv[2]);
+  int end = atoi(argv[3]);
   if ((end - start) > MAX_ROWS)
   {
     printf("Too many rows.\n");
+    return FALSE;
+  }
+  return TRUE;
+}
+
+int main(int argc, char *argv[])
+{
+  if (!validateArgs(argc, argv))
     return -1;
-  }
 
-  int voltage_vals[MAX_ROWS];
-  for (int i = 0; i < argc; i++)
-  {
-    printf("%s\n", argv[i]);
-  }
-
+  int start = atoi(argv[2]);
+  int end = atoi(argv[3]);
+  int distance_travelled = atoi(argv[4]);
+  char *outputFile = argv[5];
   int num_periods = end - start;
   double time_elapsed = num_periods * TIME_PERIOD_MS / 1000.0;
-  printf("%.1lf\n", time_elapsed);
-  FILE *fp = fopen(argv[1], "r");
-  printf("%s\n", argv[1]);
 
+  FILE *fp = fopen(argv[1], "r");
   if (fp == NULL)
   {
     printf("File location not found\n");
     return -1;
   }
 
-  char str[100];
+  skipLines(fp, start);
 
-  for (int i = 0; i < start; i++)
-  {
-    fgets(str, sizeof(str), fp);
-  }
+  PowerStats stats = {0};
+  stats.lowest_drop = VOLT_MAX;
+  int in_drop = FALSE, drop_start = 0;
 
-  char voltage_str[10], current_str[10];
-  int current_start, voltage_start;
-  int drop_min;
-  int in_drop = FALSE;
-  int drop_start = 0;
-  double voltage, current, power;
-  int lowest_drop = VOLT_MAX;
-  double max_power = MIN_POWER;
-
-  int total_drop_length = 0, drop_count = 0, total_drop_min = 0;
-  double total_power = 0, total_useful_power = 0;
-  int useful_power_counter = 0;
-
+  char line[100];
   for (int i = start; i < end; i++)
   {
-    fgets(str, sizeof(str), fp);
-
-    int comma_count = 0;
-    for (voltage_start = 0; comma_count < VOLTAGE_COL; ++voltage_start)
+    if (fgets(line, sizeof(line), fp))
     {
-      if (str[voltage_start] == ',')
-        comma_count++;
-    }
-    for (int j = 0; str[j] != ','; j++)
-    {
-      voltage_str[j] = str[j + voltage_start];
-    }
-    voltage = atof(voltage_str);
-    comma_count = 0;
-    for (current_start = 0; comma_count < CURRENT_COL; ++current_start)
-    {
-      if (str[current_start] == ',')
-        comma_count++;
-    }
-    for (int j = 0; str[j + 1] != '\n'; j++)
-    {
-      current_str[j] = str[j + current_start];
-    }
-    current = atof(current_str);
-    power = voltage * current / 1000; // W
-    total_power += power;
-    if (power > 0)
-    {
-      total_useful_power += power;
-      useful_power_counter++;
-    }
-    if (power > max_power)
-      max_power = power;
-    // printf("V=%lfV,I=%03.0lfmA, P=%04.0lfW\n", voltage, current, power);
-    if (voltage < VOLT_DROP_THRESHOLD && !in_drop)
-    {
-      drop_start = i;
-      drop_min = VOLT_MAX;
-      in_drop = TRUE;
-      // printf("Start voltage drop. Index: %d, Voltage: %d\n", i, voltage);
-    }
-    if (in_drop && voltage < drop_min)
-    {
-      drop_min = voltage;
-    }
-    if (voltage < lowest_drop)
-    {
-      lowest_drop = voltage;
-    }
-    if (in_drop && voltage >= VOLT_DROP_THRESHOLD)
-    {
-      int drop_length = (1 + i - drop_start) * TIME_PERIOD_MS;
-      // printf("The voltage dropped for %d ms and the lowest value was %dV.\n", drop_length, drop_min);
-      total_drop_length += drop_length;
-      total_drop_min += drop_min;
-      drop_count++;
-      in_drop = FALSE;
+      processLine(line, i, &stats, &in_drop, &drop_start);
     }
   }
+
   fclose(fp);
-
-  int distance_travelled = atoi(argv[4]);
-  double average_drop_length = total_drop_length / (double)drop_count / 1000;
-  double average_drop = total_drop_min / (double)drop_count;
-  double average_power = total_power / (float)num_periods;
-  double average_useful_power = total_useful_power / useful_power_counter;
-  double average_fuel = total_power / (float)num_periods * LITRES_PERWATT_PERHOUR;
-  double total_energy = time_elapsed * total_power / (float)num_periods / 1000;
-  double energy_per_dist = time_elapsed * total_power / (float)num_periods / 1000 / distance_travelled;
-
-  printToFile(outputFile, time_elapsed, distance_travelled, drop_count, average_drop_length, average_drop, lowest_drop, average_power, average_useful_power, max_power, average_fuel, total_energy, energy_per_dist);
-
+  printToFile(outputFile, time_elapsed, distance_travelled, stats);
   return 0;
 }
