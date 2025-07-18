@@ -2,14 +2,42 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define TIME_PERIOD_MS 100
 #define FALSE 0
 #define TRUE 1
-#define VOLT_MAX 5000
-#define MIN_POWER 0
-#define VOLT_DROP_THRESHOLD 4900
+
+// Change these values based on what type of experiment
+#define TIME_PERIOD_MS 100       // ms
+#define VOLT_MAX 5000            // V
+#define VOLT_DROP_THRESHOLD 4900 // V
+#define MIN_POWER 0              // W
 #define MAX_ROWS 10000
-#define LITRES_PERWATT_PERHOUR 0.00045336481
+
+// Based on Honda 7000i ES
+// 19.2L lasts for 12.1h at 50% load (3.5kW)
+#define FUEL_CAPACITY 19.2  // L
+#define RUN_LENGTH 12.1     // h
+#define GENERATOR_LOAD 3500 // W
+#define LITRES_PERWATT_PERHOUR FUEL_CAPACITY / RUN_LENGTH / GENERATOR_LOAD
+
+void printToFile(char *output_file, int time_elapsed, int distance_travelled, int drop_count, double average_drop_length, double average_drop, int lowest_drop, double average_power, double average_useful_power, double max_power, double average_fuel, double total_energy, double energy_per_dist)
+{
+  FILE *fp = fopen(output_file, "w");
+
+  fprintf(fp, "This trial lasted for %.0lfs and travelled %dm.\n", time_elapsed, distance_travelled);
+  fprintf(fp, "The voltage dropped %d times and the average drop length was %.1lfs.\n", drop_count, average_drop_length);
+  fprintf(fp, "The average drop fell to %.0lfV.\n", average_drop);
+  fprintf(fp, "The lowest the voltage dropped was %dV.\n", lowest_drop);
+  fprintf(fp, "The average power consumption during this trial was %.1lfW.\n", average_power);
+  fprintf(fp, "Counting only the power when zapping, the average power is %.1lfW.\n", average_useful_power);
+  fprintf(fp, "The maximum power reached during this trial was %.1lfW.\n", max_power);
+  fprintf(fp, "The average fuel consumption is %.2lfL/hr.\n", average_fuel);
+  fprintf(fp, "The total amount of energy consumed during this trial was %.1lfkJ.\n", total_energy);
+  fprintf(fp, "The energy used per unit distance is %.2lfkJ/m.\n", energy_per_dist);
+
+  fclose(fp);
+
+  return;
+}
 
 int main(int argc, char *argv[])
 {
@@ -18,12 +46,21 @@ int main(int argc, char *argv[])
     printf("Incorrect number of arguments\n");
     return -1;
   }
+  int start = atoi(argv[2]), end = atoi(argv[3]);
+  char *outputFile = argv[5];
+
+  if ((end - start) > MAX_ROWS)
+  {
+    printf("Too many rows.\n");
+    return -1;
+  }
+
   int voltage_vals[MAX_ROWS];
   for (int i = 0; i < argc; i++)
   {
     printf("%s\n", argv[i]);
   }
-  int start = atoi(argv[2]), end = atoi(argv[3]);
+
   int num_periods = end - start;
   double time_elapsed = num_periods * TIME_PERIOD_MS / 1000.0;
   FILE *fp = fopen(argv[1], "r");
@@ -84,7 +121,7 @@ int main(int argc, char *argv[])
     }
     if (power > max_power)
       max_power = power;
-    printf("I=%03.0lfmA, P=%04.0lfW\n", current, power);
+    // printf("I=%03.0lfmA, P=%04.0lfW\n", current, power);
     if (voltage < VOLT_DROP_THRESHOLD && !in_drop)
     {
       drop_start = i;
@@ -111,19 +148,16 @@ int main(int argc, char *argv[])
   }
   fclose(fp);
 
-  fp = fopen(argv[5], "w");
+  int distance_travelled = atoi(argv[4]);
+  double average_drop_length = total_drop_length / (double)drop_count / 1000;
+  double average_drop = total_drop_min / (double)drop_count;
+  double average_power = total_power / (float)num_periods;
+  double average_useful_power = total_useful_power / useful_power_counter;
+  double average_fuel = total_power / (float)num_periods * LITRES_PERWATT_PERHOUR;
+  double total_energy = time_elapsed * total_power / (float)num_periods / 1000;
+  double energy_per_dist = time_elapsed * total_power / (float)num_periods / 1000 / distance_travelled;
 
-  fprintf(fp, "This trial lasted for %.0lfs and travelled %dm.\n", time_elapsed, atoi(argv[4]));
-  fprintf(fp, "The voltage dropped %d times and the average drop length was %.1lfs.\n", drop_count, total_drop_length / (double)drop_count / 1000);
-  fprintf(fp, "The average drop fell to %.0lfV.\n", total_drop_min / (double)drop_count);
-  fprintf(fp, "The lowest the voltage dropped was %dV.\n", lowest_drop);
-  fprintf(fp, "The average power consumption during this trial was %.1lfW.\n", total_power / (float)num_periods);
-  fprintf(fp, "Counting only the power when zapping, the average power is %.1lfW.\n", total_useful_power / useful_power_counter);
-  fprintf(fp, "The maximum power reached during this trial was %.1lfW.\n", max_power);
-  fprintf(fp, "The average fuel consumption is %.2lfL/hr.\n", total_power / (float)num_periods * LITRES_PERWATT_PERHOUR);
-  fprintf(fp, "The total amount of energy consumed during this trial was %.1lfkJ.\n", time_elapsed * total_power / (float)num_periods / 1000);
-  fprintf(fp, "The energy used per unit distance is %.2lfkJ/m.\n", time_elapsed * total_power / (float)num_periods / 1000 / atoi(argv[4]));
+  printToFile(outputFile, time_elapsed, distance_travelled, drop_count, average_drop_length, average_drop, lowest_drop, average_power, average_useful_power, max_power, average_fuel, total_energy, energy_per_dist);
 
-  fclose(fp);
   return 0;
 }

@@ -1,4 +1,4 @@
-This trial lasted for 707s and travelled 150m.
+This trial lasted for 0s and travelled 4199136m.
 The voltage dropped 72 times and the average drop length was 1.0s.
 The average drop fell to 4372V.
 The lowest the voltage dropped was 3370V.
