@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define FALSE 0
 #define TRUE 1
@@ -20,7 +21,7 @@
 // Change these values based on what type of experiment
 #define TIME_PERIOD_MS 13        // ms
 #define VOLT_MAX 5000            // V
-#define VOLT_DROP_THRESHOLD 3500 // V
+#define VOLT_DROP_THRESHOLD 4000 // V
 #define MIN_POWER 0              // W
 #define MAX_ROWS 1000000
 
@@ -61,6 +62,22 @@ void skipLines(FILE *fp, int lines)
   {
     fgets(buffer, sizeof(buffer), fp);
   }
+}
+
+int isInt(const char *s)
+{
+  if (*s == '-' || *s == '+')
+    s++; // allow sign
+  if (!*s)
+    return 0; // empty string after sign
+
+  while (*s)
+  {
+    if (!isdigit((unsigned char)*s))
+      return 0;
+    s++;
+  }
+  return 1;
 }
 
 /**
@@ -172,20 +189,52 @@ void printToFile(const char *output_file, double time_elapsed, int distance_trav
 {
   FILE *fp = fopen(output_file, "w");
 
-  double avg_drop_len = stats.total_drop_length / (double)stats.drop_count / 1000;
-  double avg_drop_val = stats.cumulative_drop_min / (double)stats.drop_count;
+  double avg_drop_len = 0;
+  double avg_drop_val = 0;
+
+  // Only calculate averages if there were drops
+  if (stats.drop_count > 0)
+  {
+    avg_drop_len = stats.total_drop_length / (double)stats.drop_count / 1000;
+    avg_drop_val = stats.cumulative_drop_min / (double)stats.drop_count;
+  }
+
   double avg_power = stats.total_power / stats.total_power_counter;
-  double avg_useful = stats.total_useful_power / (double)stats.useful_power_counter;
+
+  double avg_useful = 0;
+  if (stats.useful_power_counter > 0)
+  {
+    avg_useful = stats.total_useful_power / stats.useful_power_counter;
+  }
+
   double avg_fuel = avg_power * LITRES_PERWATT_PERHOUR;
   double total_energy = avg_power * time_elapsed / 1000;
   double energy_per_dist = total_energy / distance_travelled;
 
   fprintf(fp, "This trial lasted for %.0lfs and travelled %dm.\n", time_elapsed, distance_travelled);
-  fprintf(fp, "The voltage dropped %d times and the average drop length was %.1lfs.\n", stats.drop_count, avg_drop_len);
-  fprintf(fp, "The average drop fell to %.0lfV.\n", avg_drop_val);
+
+  if (stats.drop_count > 0)
+  {
+    fprintf(fp, "The voltage dropped below %dV %d times and the average drop length was %.1lfs.\n", VOLT_DROP_THRESHOLD, stats.drop_count, avg_drop_len);
+    fprintf(fp, "The average drop fell to %.0lfV.\n", avg_drop_val);
+  }
+  else
+  {
+    fprintf(fp, "No voltage drops below %dV were recorded.\n", VOLT_DROP_THRESHOLD);
+  }
+
   fprintf(fp, "The lowest the voltage dropped was %04.0lfV.\n", stats.lowest_drop);
   fprintf(fp, "The average power consumption during this trial was %.1lfW.\n", avg_power);
-  fprintf(fp, "Counting only the power when zapping, the average power is %.1lfW.\n", avg_useful);
+
+  if (stats.useful_power_counter > 0)
+  {
+    fprintf(fp, "Counting only the power when zapping, the average power is %.1lfW.\n", avg_useful);
+  }
+  else
+  {
+    fprintf(fp, "No power usage was recorded during zapping events.\n");
+  }
+
   fprintf(fp, "The maximum power reached during this trial was %.1lfW.\n", stats.max_power);
   fprintf(fp, "The average fuel consumption is %.2lfL/hr.\n", avg_fuel);
   fprintf(fp, "The total amount of energy consumed during this trial was %.1lfkJ.\n", total_energy);
@@ -197,16 +246,43 @@ void printToFile(const char *output_file, double time_elapsed, int distance_trav
 /**
  * Validates command-line arguments and returns 0 if valid
  */
-int validateArgs(int argc, char *argv[])
+int validateArgs(int argc, char *argv[], int *start, int *end)
 {
-  if (argc != 6)
+  if (argc != 4 && argc != 6) // ensure that either a full file or a part of file is given
   {
     printf("Incorrect number of arguments\n");
+    printf("Usage: %s [dist_travelled] [input_file] [output_file] (start) (end)\n", argv[0]);
     return FALSE;
   }
-  int start = atoi(argv[2]);
-  int end = atoi(argv[3]);
-  if ((end - start) > MAX_ROWS)
+
+  // Check that the input file can open
+  FILE *fp = fopen(argv[2], "r");
+  if (fp == NULL)
+  {
+    printf("Could not find input file\n");
+    return FALSE;
+  }
+  fclose(fp);
+
+  if (!isInt(argv[1]))
+  {
+    printf("The distance travelled parameters are not integers");
+    return FALSE;
+  }
+
+  if (argc == 6) // make sure that the start, end, and dist_travelled are ints
+  {
+    if (!isInt(argv[4]) || !isInt(argv[5]))
+    {
+      printf("The start/end parameters are not integers");
+      return FALSE;
+    }
+  }
+
+  *start = atoi(argv[4]);
+  *end = atoi(argv[5]);
+
+  if ((*end - *start) > MAX_ROWS)
   {
     printf("Too many rows.\n");
     return FALSE;
@@ -216,28 +292,44 @@ int validateArgs(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-  if (!validateArgs(argc, argv))
+  int start, end;
+  if (!validateArgs(argc, argv, &start, &end))
+  {
+    printf("Program exiting with code -1");
     return -1;
+  }
 
-  int start = atoi(argv[2]);
-  int end = atoi(argv[3]);
-  int distance_travelled = atoi(argv[4]);
-  char *outputFile = argv[5];
+  int distance_travelled = atoi(argv[2]);
+  char *outputFile = argv[3];
+
+  if (argc >= 6)
+  {
+    start = atoi(argv[4]);
+    end = atoi(argv[5]);
+  }
+  else
+  {
+    start = 0;
+    end = 100;
+  }
+
   int num_periods = end - start;
   double time_elapsed = num_periods * TIME_PERIOD_MS / 1000.0;
 
-  FILE *fp = fopen(argv[1], "r");
+  FILE *fp = fopen(argv[2], "r");
   if (fp == NULL)
   {
     printf("File location not found\n");
     return -1;
   }
 
-  skipLines(fp, start);
+  skipLines(fp, start); // Skip the start line
 
-  PowerStats stats = {0};
+  PowerStats stats = {0}; // Initialize power stats
   stats.lowest_drop = VOLT_MAX;
   stats.cumulative_drop_min = 0.0;
+  stats.total_power = 0;
+  stats.drop_count = 0;
   int in_drop = FALSE, drop_start = 0;
 
   char line[100];
