@@ -1,0 +1,10 @@
+This trial lasted for 130s and travelled 0m.
+The voltage dropped below 4000V 1 times and the average drop length was 1.3s.
+The average drop fell to 3767V.
+The lowest the voltage dropped was 3767V.
+The average power consumption during this trial was 230.3W.
+Counting only the power when zapping, the average power is 1058.6W.
+The maximum power reached during this trial was 3193.2W.
+The average fuel consumption is 0.10L/hr.
+The total amount of energy consumed during this trial was 30.0kJ.
+The energy used per unit distance is 1.#JkJ/m.

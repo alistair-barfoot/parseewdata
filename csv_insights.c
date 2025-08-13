@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 
 #define FALSE 0
 #define TRUE 1
@@ -19,7 +20,7 @@
 #define CURRENT_COL 8
 
 // Change these values based on what type of experiment
-#define TIME_PERIOD_MS 13        // ms
+#define TIME_PERIOD_MS 100       // ms
 #define VOLT_MAX 5000            // V
 #define VOLT_DROP_THRESHOLD 4000 // V
 #define MIN_POWER 0              // W
@@ -277,10 +278,9 @@ int validateArgs(int argc, char *argv[], int *start, int *end)
       printf("The start/end parameters are not integers");
       return FALSE;
     }
+    *start = atoi(argv[4]);
+    *end = atoi(argv[5]);
   }
-
-  *start = atoi(argv[4]);
-  *end = atoi(argv[5]);
 
   if ((*end - *start) > MAX_ROWS)
   {
@@ -292,7 +292,7 @@ int validateArgs(int argc, char *argv[], int *start, int *end)
 
 int main(int argc, char *argv[])
 {
-  int start, end;
+  int start = 1, end = MAX_ROWS;
   if (!validateArgs(argc, argv, &start, &end))
   {
     printf("Program exiting with code -1");
@@ -301,17 +301,6 @@ int main(int argc, char *argv[])
 
   int distance_travelled = atoi(argv[2]);
   char *outputFile = argv[3];
-
-  if (argc >= 6)
-  {
-    start = atoi(argv[4]);
-    end = atoi(argv[5]);
-  }
-  else
-  {
-    start = 0;
-    end = 100;
-  }
 
   int num_periods = end - start;
   double time_elapsed = num_periods * TIME_PERIOD_MS / 1000.0;
@@ -323,7 +312,7 @@ int main(int argc, char *argv[])
     return -1;
   }
 
-  skipLines(fp, start); // Skip the start line
+  skipLines(fp, start); // Skip the start lines
 
   PowerStats stats = {0}; // Initialize power stats
   stats.lowest_drop = VOLT_MAX;
@@ -333,12 +322,16 @@ int main(int argc, char *argv[])
   int in_drop = FALSE, drop_start = 0;
 
   char line[100];
-  for (int i = start; i < end; i++)
+  for (int i = start; i <= end; i++)
   {
-    if (fgets(line, sizeof(line), fp))
+    // printf("%d\n", i);
+    if (fgets(line, sizeof(line), fp) == NULL)
     {
-      processLine(line, i, &stats, &in_drop, &drop_start);
+      printf("EOF reached or an error occurred when reading the line.\n");
+      break;
     }
+    printf("i:%d,\t%s", i, line);
+    processLine(line, i, &stats, &in_drop, &drop_start);
   }
 
   fclose(fp);

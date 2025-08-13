@@ -1,6 +1,6 @@
-This trial lasted for 13s and travelled 0m.
+This trial lasted for 0s and travelled 0m.
 No voltage drops below 4000V were recorded.
-The lowest the voltage dropped was 5000V.
+The lowest the voltage dropped was 0000V.
 The average power consumption during this trial was 0.0W.
 No power usage was recorded during zapping events.
 The maximum power reached during this trial was 0.0W.
