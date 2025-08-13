@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
       printf("EOF reached or an error occurred when reading the line.\n");
       break;
     }
-    printf("i:%d,\t%s", i, line);
+    DEBUG_PRINT("i:%d,\t%s", i, line);
     processLine(line, i, &stats, &in_drop, &drop_start);
   }
 
