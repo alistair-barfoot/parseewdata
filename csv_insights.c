@@ -5,7 +5,7 @@
 #define FALSE 0
 #define TRUE 1
 
-#define DEBUG // Uncomment to enable debug print statements
+// #define DEBUG // Uncomment to enable debug print statements
 
 #ifdef DEBUG
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
@@ -18,11 +18,11 @@
 #define CURRENT_COL 8
 
 // Change these values based on what type of experiment
-#define TIME_PERIOD_MS 100       // ms
+#define TIME_PERIOD_MS 13        // ms
 #define VOLT_MAX 5000            // V
-#define VOLT_DROP_THRESHOLD 4900 // V
+#define VOLT_DROP_THRESHOLD 3500 // V
 #define MIN_POWER 0              // W
-#define MAX_ROWS 10000
+#define MAX_ROWS 1000000
 
 // Based on Honda 7000i ES
 // 19.2L lasts for 12.1h at 50% load (3.5kW)

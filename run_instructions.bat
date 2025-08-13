@@ -1,5 +1,4 @@
 @echo off
 gcc csv_insights.c -o csv_insights.exe
-.\csv_insights.exe trial1_parsed.csv 550 8027 200 trial1_insights.txt
-.\csv_insights.exe trial2_parsed.csv 322 7389 150 trial2_insights.txt
+.\csv_insights.exe output_7-23.csv 10 970000 1000 7-23_insights.txt
 pause
